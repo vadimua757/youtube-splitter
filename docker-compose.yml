@@ -1,0 +1,15 @@
+services:
+  splitter:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      DATA_DIR: /data
+      # API_KEY: "change-me"
+      # MAX_DURATION_MIN: "180"
+      # MAX_CONCURRENT_JOBS: "2"
+      FILE_TTL_HOURS: "1"
+      # RATE_LIMIT_PER_MIN: "10"
+    restart: unless-stopped

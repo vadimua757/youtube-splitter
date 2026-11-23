@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>YouTube Splitter</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #f4f5f8; --card: #ffffff; --text: #171923; --muted: #6b7280; --border: #e3e6ec;
+    --input: #ffffff; --accent: #e11d48; --accent-2: #f97316; --accent-ink: #ffffff;
+    --ok: #15803d; --err: #dc2626; --track: #e8eaf0;
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 10px 30px rgba(16,24,40,.08);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1015; --card: #171a21; --text: #eceef3; --muted: #9aa3b2; --border: #272c37;
+      --input: #0f1218; --ok: #4ade80; --err: #f87171; --track: #272c37;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--text); background: var(--bg);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background-image: radial-gradient(900px 340px at 50% -120px, rgba(225,29,72,.14), transparent 70%);
+    background-repeat: no-repeat;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
+  header { display: flex; align-items: center; gap: .85rem; margin-bottom: 1.5rem; }
+  .logo {
+    width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-size: 22px;
+    box-shadow: 0 6px 16px rgba(225,29,72,.35);
+  }
+  h1 { font-size: 1.5rem; margin: 0; line-height: 1.2; }
+  header p { margin: 0; color: var(--muted); font-size: .9rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.4rem; margin-bottom: 1.1rem; }
+  label { display: block; font-size: .85rem; font-weight: 600; margin: 1rem 0 .35rem; }
+  label:first-child { margin-top: 0; }
+  label small { font-weight: 400; color: var(--muted); }
+  input[type=url], input[type=password], select, textarea {
+    width: 100%; padding: .65rem .8rem; font: inherit; color: inherit; background: var(--input);
+    border: 1px solid var(--border); border-radius: 10px; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(225,29,72,.18); }
+  textarea { font: .9rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; min-height: 140px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+  .check { display: flex; align-items: center; gap: .55rem; font-weight: 400; font-size: .92rem; margin-top: .9rem; cursor: pointer; }
+  .check input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+  .head-actions { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: flex-end; }
+  .btn.ghost.danger:hover:not(:disabled) { color: var(--err); border-color: var(--err); }
+  .split-toggle { font-weight: 600; margin-top: 1.1rem; }
+  #splitBlock[hidden] { display: none; }
+  .hint { margin: .4rem 0 0; color: var(--muted); font-size: .85rem; }
+  .hint[hidden] { display: none; }
+  textarea:disabled { opacity: .45; cursor: not-allowed; }
+  details { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
+  details summary { cursor: pointer; }
+  details input { margin-top: .5rem; }
+
+  .btn {
+    position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .7rem 1.3rem; font: inherit; font-weight: 600; color: var(--accent-ink); border: 0; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); cursor: pointer;
+    transition: transform .1s, filter .15s, opacity .15s;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(1.07); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { cursor: progress; opacity: .85; }
+  .btn.wide { width: 100%; margin-top: 1.2rem; padding: .85rem; font-size: 1.02rem; }
+  .btn.small { padding: .45rem .9rem; font-size: .88rem; min-width: 9.5rem; }
+  .btn.ghost { background: var(--input); color: var(--text); border: 1px solid var(--border); }
+  .btn .fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--p, 0) * 100%); background: rgba(255,255,255,.3); transition: width .2s linear; pointer-events: none; }
+  .btn.ghost .fill { background: rgba(225,29,72,.18); }
+  .btn .label { position: relative; z-index: 1; white-space: nowrap; }
+  .btn[data-state=ok] { background: var(--ok); color: #fff; }
+  .btn[data-state=err] { background: var(--err); color: #fff; }
+  .spinner { width: 1em; height: 1em; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; position: relative; z-index: 1; }
+  .btn:not(:disabled) .spinner { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #status[hidden], .btn[hidden], #videoOpts[hidden] { display: none; }
+  .steps { list-style: none; display: flex; gap: .4rem; padding: 0; margin: 0 0 1rem; }
+  .steps li { flex: 1; text-align: center; font-size: .78rem; color: var(--muted); padding-top: .55rem; border-top: 3px solid var(--track); transition: color .2s, border-color .2s; }
+  .steps li[hidden] { display: none; }
+  .steps li.done { color: var(--ok); border-color: var(--ok); }
+  .steps li.active { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .bar { height: 8px; background: var(--track); border-radius: 99px; overflow: hidden; }
+  .bar > div { height: 100%; width: calc(var(--p, 0) * 100%); background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 99px; transition: width .4s ease; }
+  #msg { margin: .8rem 0 0; font-size: .95rem; }
+  #msg.error { color: var(--err); font-weight: 600; }
+  .result-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.2rem 0 .4rem; }
+  .result-head h2 { margin: 0; font-size: 1.05rem; }
+  ul.parts { list-style: none; margin: 0; padding: 0; }
+  ul.parts li { display: flex; align-items: center; gap: .8rem; padding: .7rem 0; border-top: 1px solid var(--border); }
+  ul.parts li { flex-wrap: wrap; }
+  .actions { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: flex-end; }
+  .btn.play { min-width: 7.5rem; }
+  .player { flex-basis: 100%; }
+  .player[hidden] { display: none; }
+  .player audio { width: 100%; }
+  .player video { width: 100%; max-height: 260px; border-radius: 10px; background: #000; }
+  .num { flex: none; width: 28px; height: 28px; border-radius: 8px; background: var(--track); display: grid; place-items: center; font-size: .8rem; font-weight: 700; color: var(--muted); }
+  .info { flex: 1; min-width: 0; }
+  .info b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .info span { color: var(--muted); font-size: .82rem; }
+  footer { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 1.5rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo" aria-hidden="true">✂</div>
+    <div>
+      <h1>YouTube Splitter</h1>
+      <p>Завантаж відео або аудіо і розріж за таймкодами</p>
+    </div>
+  </header>
+
+  <form id="f" class="card">
+    <label for="url">Посилання на YouTube</label>
+    <input id="url" type="url" required placeholder="https://www.youtube.com/watch?v=…">
+
+    <div class="grid">
+      <div>
+        <label for="format">Формат</label>
+        <select id="format">
+          <option value="mp3">Аудіо — mp3</option>
+          <option value="m4a">Аудіо — m4a (без перекодування)</option>
+          <option value="opus">Аудіо — opus (без перекодування)</option>
+          <option value="mp4">Відео — mp4</option>
+        </select>
+      </div>
+      <div id="videoOpts" hidden>
+        <label for="quality">Якість відео</label>
+        <select id="quality">
+          <option value="480">480p</option>
+          <option value="720">720p</option>
+          <option value="1080" selected>1080p</option>
+        </select>
+      </div>
+    </div>
+    <div id="modeWrap" hidden>
+      <label for="mode">Нарізання відео</label>
+      <select id="mode">
+        <option value="fast">Швидко — межі по ключових кадрах</option>
+        <option value="exact">Точно — з перекодуванням (повільніше)</option>
+      </select>
+    </div>
+
+    <label class="check split-toggle"><input id="split" type="checkbox"> Нарізати на фрагменти</label>
+
+    <div id="splitBlock" hidden>
+    <label class="check"><input id="chapters" type="checkbox" checked> Нарізати за розділами відео (замість таймкодів)</label>
+    <p id="chaptersHint" class="hint">Беруться розділи (chapters), які автор додав до відео. Якщо їх немає, файл не нарізається.</p>
+
+    <label for="timecodes">Таймкоди <small>— по одному в рядку, як в описі YouTube</small></label>
+    <textarea id="timecodes" disabled placeholder="0:00 Вступ&#10;3:45 Перша пісня&#10;1:02:03 Фінал"></textarea>
+    </div>
+
+    <details>
+      <summary>API-ключ (якщо сервіс його вимагає)</summary>
+      <input id="apikey" type="password" autocomplete="off" aria-label="API-ключ">
+    </details>
+
+    <button id="go" class="btn wide" type="submit"><span class="spinner"></span><span class="label">Завантажити</span></button>
+  </form>
+
+  <section id="status" class="card" hidden aria-live="polite">
+    <ol class="steps" id="steps">
+      <li data-s="queued">У черзі</li>
+      <li data-s="downloading">Завантаження</li>
+      <li data-s="splitting">Нарізання</li>
+      <li data-s="done">Готово</li>
+    </ol>
+    <div class="bar"><div id="bar"></div></div>
+    <p id="msg"></p>
+
+    <div id="result" hidden>
+      <div class="result-head">
+        <h2 id="resultTitle"></h2>
+        <div class="head-actions">
+          <button id="del" class="btn small ghost danger" type="button"><span class="spinner"></span><span class="label">Видалити з сервера</span><span class="fill"></span></button>
+          <button id="zip" class="btn small" type="button" hidden><span class="spinner"></span><span class="label">Завантажити все</span><span class="fill"></span></button>
+        </div>
+      </div>
+      <ul class="parts" id="parts"></ul>
+    </div>
+  </section>
+
+  <footer>Файли тимчасові: їх можна видалити вручну, а решта з часом видаляється з сервера автоматично.<br>Користуйтеся лише з матеріалами, на які маєте права.</footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const STAGES = ['queued', 'downloading', 'splitting', 'done'];
+
+const authHeaders = () => {
+  const key = $('apikey').value.trim();
+  return key ? { 'X-API-Key': key } : {};
+};
+
+const fmtTime = s => {
+  s = Math.round(s);
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  const p = n => String(n).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(sec)}` : `${m}:${p(sec)}`;
+};
+const fmtBytes = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' МБ' : Math.round(n / 1024) + ' КБ';
+const errorText = d => typeof d === 'string' ? d : JSON.stringify(d);
+
+$('format').addEventListener('change', () => {
+  const video = $('format').value === 'mp4';
+  $('videoOpts').hidden = !video;
+  $('modeWrap').hidden = !video;
+});
+
+$('split').addEventListener('change', () => {
+  $('splitBlock').hidden = !$('split').checked;
+});
+
+$('chapters').addEventListener('change', () => {
+  const byChapters = $('chapters').checked;
+  $('timecodes').disabled = byChapters;
+  $('chaptersHint').hidden = !byChapters;
+});
+
+// Чи нарізається поточне завдання; якщо ні, крок «Нарізання» не показуємо.
+let currentSplit = false;
+
+function setStage(stage, failed) {
+  // Без нарізання серверний етап «splitting» (конвертація) зливається із завантаженням.
+  if (!currentSplit && stage === 'splitting') stage = 'downloading';
+  const idx = STAGES.indexOf(stage);
+  document.querySelectorAll('#steps li').forEach((li, i) => {
+    li.hidden = li.dataset.s === 'splitting' && !currentSplit;
+    li.className = failed ? '' : i < idx || stage === 'done' ? 'done' : i === idx ? 'active' : '';
+  });
+}
+
+function show(text, progress, isError = false) {
+  $('status').hidden = false;
+  $('msg').textContent = text;
+  $('msg').className = isError ? 'error' : '';
+  $('bar').style.setProperty('--p', progress);
+}
+
+function setBtn(btn, { busy, text, p, state }) {
+  btn.disabled = !!busy;
+  if (text !== undefined) btn.querySelector('.label').textContent = text;
+  if (p !== undefined) btn.style.setProperty('--p', p);
+  btn.dataset.state = state || '';
+}
+
+// Завантаження файлу з прогресом у самій кнопці; поки триває, кнопка заблокована.
+async function saveFile(url, filename, btn) {
+  if (btn.disabled) return;
+  const original = btn.dataset.label;
+  setBtn(btn, { busy: true, text: 'Підготовка…', p: 0 });
+  try {
+    const r = await fetch(url, { headers: authHeaders() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const total = Number(r.headers.get('Content-Length')) || 0;
+    const reader = r.body.getReader();
+    const chunks = [];
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      got += value.length;
+      setBtn(btn, {
+        busy: true,
+        text: total ? `Завантаження… ${Math.round(got / total * 100)}%` : `Завантаження… ${fmtBytes(got)}`,
+        p: total ? got / total : 0.5,
+      });
+    }
+    const blob = new Blob(chunks, { type: r.headers.get('Content-Type') || 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    setBtn(btn, { busy: true, text: 'Збережено ✓', p: 1, state: 'ok' });
+    await sleep(1500);
+  } catch (err) {
+    setBtn(btn, { busy: true, text: 'Помилка: ' + err.message, state: 'err' });
+    await sleep(2500);
+  } finally {
+    setBtn(btn, { busy: false, text: original, p: 0, state: '' });
+  }
+}
+
+function makeButton(label, ghost) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn small' + (ghost ? ' ghost' : '');
+  btn.dataset.label = label;
+  const spinner = Object.assign(document.createElement('span'), { className: 'spinner' });
+  const text = Object.assign(document.createElement('span'), { className: 'label', textContent: label });
+  const fill = Object.assign(document.createElement('span'), { className: 'fill' });
+  btn.append(spinner, text, fill);
+  return btn;
+}
+
+function makeDownloadButton(label, url, filename, ghost) {
+  const btn = makeButton(label, ghost);
+  btn.addEventListener('click', () => saveFile(url, filename, btn));
+  return btn;
+}
+
+const MIME = { mp3: 'audio/mpeg', m4a: 'audio/mp4', opus: 'audio/ogg', mp4: 'video/mp4' };
+let playerUrls = [];
+
+// Кнопка «Слухати»: файл вантажиться через fetch (з API-ключем), далі грається у вбудованому плеєрі.
+function makePlayButton(li, url, filename) {
+  const btn = makeButton('▶ Слухати', true);
+  btn.classList.add('play');
+  let player = null;
+  btn.addEventListener('click', async () => {
+    if (btn.disabled) return;
+    if (player) {
+      const hide = !player.hidden;
+      player.hidden = hide;
+      if (hide) player.querySelector('audio,video').pause();
+      else player.querySelector('audio,video').play();
+      btn.querySelector('.label').textContent = hide ? '▶ Слухати' : '✕ Сховати';
+      return;
+    }
+    setBtn(btn, { busy: true, text: 'Завантаження…' });
+    try {
+      const r = await fetch(url, { headers: authHeaders() });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const ext = filename.split('.').pop().toLowerCase();
+      const blob = new Blob([await r.blob()], { type: MIME[ext] || 'application/octet-stream' });
+      const objectUrl = URL.createObjectURL(blob);
+      playerUrls.push(objectUrl);
+      const media = document.createElement(ext === 'mp4' ? 'video' : 'audio');
+      media.controls = true;
+      media.preload = 'auto';
+      media.src = objectUrl;
+      media.addEventListener('play', () => {
+        document.querySelectorAll('#parts audio, #parts video').forEach(m => { if (m !== media) m.pause(); });
+      });
+      media.addEventListener('error', () => {
+        player.dataset.error = '1';
+        btn.querySelector('.label').textContent = 'Формат не підтримується браузером';
+      });
+      player = document.createElement('div');
+      player.className = 'player';
+      player.appendChild(media);
+      li.appendChild(player);
+      setBtn(btn, { busy: false, text: '✕ Сховати' });
+      media.play().catch(() => {});
+    } catch (err) {
+      setBtn(btn, { busy: true, text: 'Помилка: ' + err.message, state: 'err' });
+      await sleep(2500);
+      setBtn(btn, { busy: false, text: '▶ Слухати', state: '' });
+    }
+  });
+  return btn;
+}
+
+function renderResult(jobId, job) {
+  $('result').hidden = false;
+  $('resultTitle').textContent = job.title || 'Результат';
+  const ul = $('parts');
+  ul.querySelectorAll('audio, video').forEach(m => m.pause());
+  playerUrls.forEach(u => URL.revokeObjectURL(u));
+  playerUrls = [];
+  ul.replaceChildren();
+  for (const p of job.parts) {
+    const li = document.createElement('li');
+    const num = Object.assign(document.createElement('div'), { className: 'num', textContent: p.n });
+    const info = document.createElement('div');
+    info.className = 'info';
+    const title = document.createElement('b');
+    title.textContent = p.title;
+    const meta = document.createElement('span');
+    meta.textContent = `${fmtTime(p.start)} – ${fmtTime(p.end)} · ${p.file}`;
+    info.append(title, meta);
+    const url = `/jobs/${jobId}/files/${p.n}`;
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    actions.append(makePlayButton(li, url, p.file), makeDownloadButton('Завантажити', url, p.file, true));
+    li.append(num, info, actions);
+    ul.appendChild(li);
+  }
+  const zip = $('zip');
+  zip.hidden = job.parts.length < 2;
+  zip.dataset.label = 'Завантажити все';
+  zip.onclick = () => saveFile(`/jobs/${jobId}/download`, (job.title || 'result') + '.zip', zip);
+
+  const del = $('del');
+  del.onclick = async () => {
+    if (del.disabled || !confirm('Видалити файли цього завдання з сервера? Це незворотно.')) return;
+    setBtn(del, { busy: true, text: 'Видалення…' });
+    try {
+      const r = await fetch(`/jobs/${jobId}`, { method: 'DELETE', headers: authHeaders() });
+      if (!r.ok && r.status !== 404) throw new Error('HTTP ' + r.status);
+      ul.querySelectorAll('audio, video').forEach(m => m.pause());
+      playerUrls.forEach(u => URL.revokeObjectURL(u));
+      playerUrls = [];
+      ul.replaceChildren();
+      $('result').hidden = true;
+      show('Файли видалено з сервера.', 1);
+    } catch (err) {
+      setBtn(del, { busy: true, text: 'Помилка: ' + err.message, state: 'err' });
+      await sleep(2500);
+    } finally {
+      setBtn(del, { busy: false, text: 'Видалити з сервера', state: '' });
+    }
+  };
+}
+
+async function poll(jobId) {
+  for (;;) {
+    const r = await fetch(`/jobs/${jobId}`, { headers: authHeaders() });
+    const job = await r.json();
+    if (!r.ok) throw new Error(errorText(job.detail));
+    if (job.status === 'failed') {
+      setStage(job.status, true);
+      show(`${job.error.code}: ${job.error.message}`, job.progress, true);
+      return;
+    }
+    setStage(job.status);
+    if (job.status === 'done') {
+      show('Готово — файли можна завантажити нижче.', 1);
+      renderResult(jobId, job);
+      return;
+    }
+    const names = { queued: 'У черзі', downloading: 'Завантажую з YouTube', splitting: currentSplit ? 'Нарізаю на фрагменти' : 'Обробляю файл' };
+    show(`${names[job.status] || job.status}… ${Math.round(job.progress * 100)}%`, job.progress);
+    await sleep(1000);
+  }
+}
+
+$('f').addEventListener('submit', async e => {
+  e.preventDefault();
+  const go = $('go');
+  const split = $('split').checked;
+  const byChapters = split && $('chapters').checked;
+  const timecodes = split && !byChapters ? $('timecodes').value.trim() : '';
+  if (split && !byChapters && !timecodes) {
+    setStage('queued', true);
+    show('Вкажіть таймкоди або виберіть нарізання за розділами відео.', 0, true);
+    return;
+  }
+  const body = {
+    url: $('url').value.trim(),
+    format: $('format').value,
+    timecodes: timecodes || null,
+    use_chapters: byChapters,
+    video_quality: Number($('quality').value),
+    video_mode: $('mode').value,
+  };
+  setBtn(go, { busy: true, text: 'Опрацьовую…' });
+  $('result').hidden = true;
+  currentSplit = split;
+  setStage('queued');
+  show('Створюю завдання…', 0);
+  try {
+    const r = await fetch('/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(errorText(data.detail));
+    await poll(data.job_id);
+  } catch (err) {
+    setStage('queued', true);
+    show('Помилка: ' + err.message, 0, true);
+  } finally {
+    setBtn(go, { busy: false, text: 'Завантажити' });
+  }
+});
+</script>
+</body>
+</html>
